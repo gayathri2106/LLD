@@ -8,6 +8,12 @@ enum VehicleType{
 };
 class AbstractEntity{
     private Long id;
+    private static Long idCounter = 0L;
+
+    public AbstractEntity(){
+        this.id = ++idCounter;
+    }
+
     Long getId(){
         return id;
     }
@@ -17,6 +23,7 @@ class Vehicle extends AbstractEntity {
     private final String vehicleNo;
 
     public Vehicle(VehicleType vehicleType, String vehicleNo){
+        super();
         this.vehicleType = vehicleType;
         this.vehicleNo = vehicleNo;
     }
@@ -35,6 +42,7 @@ class Ticket extends AbstractEntity{
     private LocalDateTime parkedTime;
 
     public Ticket(Slot slot, Vehicle vehicle){
+        super();
         this.slot = slot;
         this.vehicle = vehicle;
         this.parkedTime = LocalDateTime.now();
@@ -59,6 +67,7 @@ class Slot extends AbstractEntity{
     private VehicleType vehicleType;
 
     public Slot(VehicleType vehicleType){
+        super();
         this.vehicleType = vehicleType;
         this.isOccupied = false;
     }
@@ -83,6 +92,7 @@ class Level extends AbstractEntity{
     private Map<Long,Slot> slots;
 
     public Level(Map<Long,Slot> slots){
+        super();
         this.slots = slots;
     }
 
@@ -91,13 +101,36 @@ class Level extends AbstractEntity{
     }
 };
 class ParkingLot extends AbstractEntity{
+    private static ParkingLot instance;
     private Map<Long,Level> floors;
     private Map<String,Ticket> activeTickets;
     private ParkingStrategy parkingStrategy;
     private FeeStrategy feeStrategy;
 
+    private ParkingLot(){
+        this.floors = new HashMap<>();
+        this.activeTickets = new HashMap<>();
+        this.parkingStrategy = new NearestStrategy();
+        this.feeStrategy = new HourlyBasisStrategy();
+    }
+
+    public static ParkingLot getInstance(){
+        if(instance == null){
+            synchronized(ParkingLot.class){
+                if(instance == null){
+                    instance = new ParkingLot();
+                }
+            }
+        }
+        return instance;
+    }
+
     Map<Long,Level> getFloors(){
         return floors;
+    }
+
+    void addFloor(Level level){
+        this.floors.put(level.getId(), level);
     }
 
     void setStrategy(ParkingStrategy parkingStrategy){
@@ -160,5 +193,39 @@ class HourlyBasisStrategy implements FeeStrategy{
         // Get the total difference in hours
         long hours = Math.max(1, (duration.toMinutes() + 59) / 60);
         return priceMap.get(ticket.getVehicle().getVehicleType())*hours;
+    }
+};
+class ParkingLotDemo{
+    public static void main(String[] args) {
+        ParkingLot parkingLot = ParkingLot.getInstance();
+
+        // Create levels and slots
+        Map<Long, Slot> level1Slots = new HashMap<>();
+        level1Slots.put(1L, new Slot(VehicleType.CAR));
+        level1Slots.put(2L, new Slot(VehicleType.BIKE));
+        Level level1 = new Level(level1Slots);
+        parkingLot.addFloor(level1);
+
+        Map<Long, Slot> level2Slots = new HashMap<>();
+        level2Slots.put(1L, new Slot(VehicleType.TRUCK));
+        level2Slots.put(2L, new Slot(VehicleType.CAR));
+        Level level2 = new Level(level2Slots);
+        parkingLot.addFloor(level2);
+
+        // Park vehicles
+        Vehicle car1 = new Vehicle(VehicleType.CAR, "CAR123");
+        Ticket ticket1 = parkingLot.parkVechile(car1);
+        System.out.println("Parked CAR123, Ticket ID: " + ticket1.getId());
+
+        Vehicle bike1 = new Vehicle(VehicleType.BIKE, "BIKE123");
+        Ticket ticket2 = parkingLot.parkVechile(bike1);
+        System.out.println("Parked BIKE123, Ticket ID: " + ticket2.getId());
+
+        // Unpark vehicles
+        Double fee1 = parkingLot.unParkVechile(ticket1);
+        System.out.println("Unparked CAR123, Fee: " + fee1);
+
+        Double fee2 = parkingLot.unParkVechile(ticket2);
+        System.out.println("Unparked BIKE123, Fee: " + fee2);
     }
 }
